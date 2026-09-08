@@ -1,0 +1,20 @@
+:root { color: #172033; font-family: "Microsoft YaHei", system-ui, sans-serif; }
+* { box-sizing: border-box; }
+body { width: 350px; margin: 0; background: #f7f9fc; }
+main { padding: 18px; }
+header { margin-bottom: 14px; }
+h1 { margin: 0; font-size: 18px; }
+header p, .notice { margin: 5px 0 0; color: #78869a; font-size: 12px; line-height: 1.5; }
+label { display: block; margin-top: 12px; font-size: 13px; font-weight: 700; }
+textarea { display: block; width: 100%; height: 68px; margin-top: 6px; padding: 9px; resize: vertical; border: 1px solid #dbe3ef; border-radius: 8px; background: #fff; color: #24324a; font: 12px/1.45 inherit; }
+textarea:focus { outline: 2px solid #b8d4ff; border-color: #3484ff; }
+.exclusions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; padding: 10px; border-radius: 8px; background: #fff4e7; }
+.exclusions strong, .exclusions span { display: block; }.exclusions strong { font-size: 13px; }.exclusions span { margin-top: 3px; color: #9b661a; font-size: 11px; }
+button { width: 100%; border: 0; border-radius: 8px; padding: 10px; cursor: pointer; font: 600 13px inherit; }
+button:disabled { cursor: not-allowed; opacity: .55; }.outline { width: auto; padding: 7px 8px; border: 1px solid #f0bd83; background: #fff; color: #9a5b0d; font-size: 11px; }
+#exclusionList { margin: 7px 0 0; padding: 0; list-style: none; max-height: 104px; overflow: auto; }
+#exclusionList:empty { display: none; }.excluded { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 2px; border-bottom: 1px solid #e8edf5; font-size: 12px; }.excluded span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.excluded button { width: auto; padding: 3px 5px; background: transparent; color: #d05c54; font-size: 11px; }
+.actions { display: grid; gap: 8px; margin-top: 15px; }.primary { color: #fff; background: #287af6; }.secondary { color: #2467d1; background: #eaf2ff; }.diagnose { color: #536681; background: #eef2f7; }.test { color: #207247; background: #eaf8ef; }.stop { color: #be433c; background: #fff1f0; }
+.status { min-height: 18px; margin: 12px 0 0; color: #52627a; font-size: 12px; line-height: 1.45; }.status.error { color: #c9433c; }.status.running { color: #1768db; }
+.notice { border-top: 1px solid #e6ebf3; padding-top: 10px; }
+#sendCurrentButton, #draftButton, #replaceDraftButton, #previewButton, #messageAuditButton, #collectionScanButton, #auditButton, #copyAuditButton, #auditOutput { display: none; }

@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "BOSS 消息助手",
+  "version": "0.1.5",
+  "description": "在 BOSS 直聘消息页手动发送模板消息并管理排除名单。",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["https://www.zhipin.com/web/geek/chat*"],
+  "action": {
+    "default_title": "BOSS 消息助手",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.zhipin.com/web/geek/chat*"],
+      "js": ["shared.js", "conversation-heuristics.js", "conversation-target.js", "conversation-scroll-target.js", "collection-scroll.js", "send-confirmation.js", "audit-tree.js", "audit-report.js", "editor-target.js", "editor-write.js", "message-container-target.js", "message-state.js", "send-command.js", "task-runner.js", "selectors.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
