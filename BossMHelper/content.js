@@ -1,4 +1,6 @@
 (() => {
+  // 版本标识 —— 打开 BOSS 页面后按 F12 看到这一行说明用的是新代码
+  console.log('[BossMHelper v3] loaded — 失败不中断任务，切换会话后等聊天内容加载完成');
   const { isUnreadFollowUpEligible, canWriteDraft } = BossAssistantShared;
   const { pickConversationRows } = BossAssistantConversationHeuristics;
   const { conversationIdentity, conversationTarget, conversationKey, uniqueConversationTargets, hasSelectedConversationClass, shouldRescanConversation } = BossAssistantConversationTarget;
@@ -669,15 +671,38 @@
     await wait(250);
     if (editorValue(input) !== template) throw new Error('The visible message editor did not accept the template.');
     const command = enterCommand();
-    input.focus();
-    input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...command }));
-    input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, ...command }));
-    const confirmed = await waitFor(() => {
+    const tryPressEnter = async () => {
+      input.focus();
+      // 用 jQuery/Vue/React 都识别的组合：keydown + keypress + keyup，
+      // 避免 React 合成事件因为缺一类事件而丢弃。
+      input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...command }));
+      input.dispatchEvent(new KeyboardEvent('keypress', { bubbles: true, cancelable: true, ...command }));
+      input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, ...command }));
+    };
+    const isConfirmed = () => {
       const container = messageContainer();
       const newest = container ? text(all(BossAssistantSelectors.messageItem, container).filter((item) => text(item)).at(-1)) : '';
       return isSendConfirmed({ editorText: editorValue(input), newestMessageText: newest, template });
-    }, 4000);
-    if (!confirmed) throw new Error('The page did not confirm that the message was sent.');
+    };
+    // 第一次尝试：超时 6s（之前是 4s，给网络慢的会话多留点余地）
+    await tryPressEnter();
+    let confirmed = await waitFor(isConfirmed, 6000);
+    if (!confirmed) {
+      // 第一次没确认，多半是 React 那帧事件被丢了。
+      // 重试：清空、重写、聚焦、再按一次 Enter。
+      clearInput(input);
+      await wait(80);
+      setInput(template);
+      await wait(200);
+      if (editorValue(input) !== template) {
+        throw new Error('The visible message editor did not accept the template on retry.');
+      }
+      await tryPressEnter();
+      confirmed = await waitFor(isConfirmed, 6000);
+    }
+    if (!confirmed) {
+      throw new Error('The page did not confirm that the message was sent.');
+    }
     return { sent: 1 };
   }
 
@@ -699,10 +724,11 @@
         result.sent += 1;
         await wait(1000);
       } catch (error) {
+        // 单个会话失败不应中断整个任务 —— 记下失败原因，跳过这个会话继续处理下一个。
         result.failed += 1;
-        result.failureReasons.push(error.message);
-        result.stopped = true;
-        break;
+        if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
+        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `${conversation.label}：${error.message}`, result });
+        await wait(500);
       }
     }
     chrome.runtime.sendMessage({ type: 'TASK_COMPLETE', result });
@@ -732,10 +758,11 @@
         result.sent += 1;
         await wait(1000);
       } catch (error) {
+        // 单个会话失败不应中断整个任务 —— 记下失败原因，跳过这个会话继续处理下一个。
         result.failed += 1;
-        result.failureReasons.push(error.message);
-        result.stopped = true;
-        break;
+        if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
+        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `${conversation.label}：${error.message}`, result });
+        await wait(500);
       }
     }
     chrome.runtime.sendMessage({ type: 'TASK_COMPLETE', result });

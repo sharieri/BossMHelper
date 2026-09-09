@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "BOSS 消息助手",
-  "version": "0.1.5",
-  "description": "在 BOSS 直聘消息页手动发送模板消息并管理排除名单。",
+  "name": "BOSS 消息助手 v3",
+  "version": "0.3.0",
+  "description": "v3：失败不中断任务、跳过当前会话；切完会话等聊天内容加载后再写消息。",
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["https://www.zhipin.com/web/geek/chat*"],
   "action": {
-    "default_title": "BOSS 消息助手",
+    "default_title": "BOSS 消息助手 v3",
     "default_popup": "popup.html"
   },
   "content_scripts": [
