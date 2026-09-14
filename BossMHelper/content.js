@@ -1,6 +1,6 @@
 (() => {
   // 版本标识 —— 打开 BOSS 页面后按 F12 看到这一行说明用的是新代码
-  console.log('[BossMHelper v3] loaded — 失败不中断任务，切换会话后等聊天内容加载完成');
+  console.log('[BossMHelper v6.2] loaded — v6.1 基础 + collectConversations 加 scrollHeight 检测 + 6 轮无进展才退出');
   const { isUnreadFollowUpEligible, canWriteDraft } = BossAssistantShared;
   const { pickConversationRows } = BossAssistantConversationHeuristics;
   const { conversationIdentity, conversationTarget, conversationKey, uniqueConversationTargets, hasSelectedConversationClass, shouldRescanConversation } = BossAssistantConversationTarget;
@@ -162,16 +162,39 @@
     if (!container) throw new Error('未找到消息会话列表，请确认已打开 BOSS 直聘消息页。');
     const found = new Map();
     container.scrollTop = 0;
-    await wait(300);
-    for (let round = 0; round < 150 && !stopRequested; round += 1) {
+    await wait(500);
+
+    // 【v6.2 补丁】在 v6 基础上：
+    // 1) 增加"scrollHeight 还在增长"检测（BOSS 还在 fetch 的话 scrollHeight 会变）
+    // 2) 退出条件更保守：连续 6 轮没任何增长（会话数 + scrollHeight）才退出
+    // 3) "看起来到底"时按 heightGrowing 分档等：还在 fetch 就多等
+    let lastSize = 0;
+    let lastHeight = 0;
+    let idleRounds = 0;
+
+    for (let round = 0; round < 250 && !stopRequested; round += 1) {
       conversationItems().map(entryFor).forEach((entry) => {
         if (entry.key) found.set(entry.key, conversationTarget(entry, container.scrollTop));
       });
+      const scrollHeight = container.scrollHeight;
+      const sizeGrowing = found.size > lastSize;
+      const heightGrowing = scrollHeight > lastHeight + 2;
+      if (sizeGrowing) { lastSize = found.size; idleRounds = 0; }
+      if (heightGrowing) { lastHeight = scrollHeight; idleRounds = 0; }
+
       const current = container.scrollTop;
-      const next = nextCollectionScrollTop(current, container.scrollHeight, container.clientHeight);
-      if (next <= current) break;
+      const next = nextCollectionScrollTop(current, scrollHeight, container.clientHeight);
+      if (next <= current) {
+        // 【v6.2 补丁】连续 6 轮无任何进展才退出（之前 3 轮太激进）
+        if (idleRounds >= 6) break;
+        idleRounds += 1;
+        // 还在 fetch（heightGrowing）就多等，没在 fetch 就少等
+        await wait(heightGrowing ? 2500 : 1500);
+        continue;
+      }
+
       container.scrollTop = next;
-      await wait(350);
+      await wait(600);  // v6 是 550，再加 50ms 保险
     }
     return [...found.values()];
   }
@@ -264,7 +287,12 @@
     if (!fresh) throw new Error('Target conversation was not found after refreshing the current list; skipped to prevent a mis-send.');
     const clickTarget = fresh.item.querySelector('.friend-content') || fresh.item;
     clickTarget.click();
-    const activated = await waitFor(() => selectedEntry()?.key === target.key, 1200);
+    // v6 补丁：1.2s 经常不够，给 BOSS 切会话 2.5s；如果还没选中，再点一次（第一次可能被 React 吃了）
+    let activated = await waitFor(() => selectedEntry()?.key === target.key, 2500);
+    if (!activated) {
+      clickTarget.click();
+      activated = await waitFor(() => selectedEntry()?.key === target.key, 2000);
+    }
     if (!activated) throw new Error('Target conversation did not become active; skipped to prevent a mis-send.');
     // 切完会话后再等聊天区域真正就绪（消息历史 + 输入框渲染完成），
     // 防止在聊天内容还在加载时操作输入框，导致错发或草稿污染。
