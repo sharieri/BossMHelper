@@ -804,37 +804,55 @@
       scrollAttempts: 0,
       anchorPosition: conversationPosition(conversationContainer(), current.item)
     };
+    let conversation = null;
     while (!stopRequested) {
-      let conversation = null;
-      try {
-        conversation = await nextLazyDownwardTarget(state);
-      } catch (error) {
-        result.failed += 1;
-        if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
-        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `Downward successor: ${error.message}`, result });
-        await wait(500);
-        break;
+      if (!conversation) {
+        try {
+          conversation = await nextLazyDownwardTarget(state);
+        } catch (error) {
+          result.failed += 1;
+          if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
+          chrome.runtime.sendMessage({ type: 'PROGRESS', label: `Downward successor: ${error.message}`, result });
+          await wait(500);
+          break;
+        }
       }
       if (!conversation) break;
       state.processedKeys.add(conversation.key);
       state.currentKey = conversation.key;
+      let lockedSuccessor = null;
+      let successorError = null;
+      try {
+        // Lock the next row before sending: BOSS may move the current row after a successful send.
+        lockedSuccessor = await nextLazyDownwardTarget(state);
+      } catch (error) {
+        successorError = error;
+      }
       if (nextTaskAction(conversation, exclusionKeys).type === 'skip') {
         result.skipped += 1;
-        continue;
-      }
-      chrome.runtime.sendMessage({ type: 'PROGRESS', label: conversation.label, result });
-      try {
-        await activateConversation(conversation, { allowRescan: false });
-        await sendCurrent(template);
-        result.sent += 1;
-        await wait(POST_SEND_DELAY_MS);
-      } catch (error) {
+      } else {
+        chrome.runtime.sendMessage({ type: 'PROGRESS', label: conversation.label, result });
+        try {
+          await activateConversation(conversation, { allowRescan: false });
+          await sendCurrent(template);
+          result.sent += 1;
+          await wait(POST_SEND_DELAY_MS);
+        } catch (error) {
         // 单个会话失败不应中断整个任务 —— 记下失败原因，跳过这个会话继续处理下一个。
-        result.failed += 1;
-        if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
-        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `${conversation.label}：${error.message}`, result });
-        await wait(500);
+          result.failed += 1;
+          if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
+          chrome.runtime.sendMessage({ type: 'PROGRESS', label: `${conversation.label}：${error.message}`, result });
+          await wait(500);
+        }
       }
+      if (successorError) {
+        result.failed += 1;
+        if (!result.failureReasons.includes(successorError.message)) result.failureReasons.push(successorError.message);
+        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `Downward successor: ${successorError.message}`, result });
+        await wait(500);
+        break;
+      }
+      conversation = lockedSuccessor;
     }
     if (stopRequested) result.stopped = true;
     chrome.runtime.sendMessage({ type: 'TASK_COMPLETE', result });
@@ -853,42 +871,60 @@
       scrollAttempts: 0,
       anchorPosition: conversationPosition(conversationContainer(), current.item)
     };
+    let conversation = null;
     while (!stopRequested) {
-      let conversation = null;
-      try {
-        conversation = await nextLazyDownwardTarget(state);
-      } catch (error) {
-        result.failed += 1;
-        if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
-        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `Downward successor: ${error.message}`, result });
-        await wait(500);
-        break;
+      if (!conversation) {
+        try {
+          conversation = await nextLazyDownwardTarget(state);
+        } catch (error) {
+          result.failed += 1;
+          if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
+          chrome.runtime.sendMessage({ type: 'PROGRESS', label: `Downward successor: ${error.message}`, result });
+          await wait(500);
+          break;
+        }
       }
       if (!conversation) break;
       state.processedKeys.add(conversation.key);
       state.currentKey = conversation.key;
+      let lockedSuccessor = null;
+      let successorError = null;
+      try {
+        // Lock the next row before sending: BOSS may move the current row after a successful send.
+        lockedSuccessor = await nextLazyDownwardTarget(state);
+      } catch (error) {
+        successorError = error;
+      }
       if (nextTaskAction(conversation, exclusionKeys).type === 'skip') {
         result.skipped += 1;
-        continue;
-      }
-      chrome.runtime.sendMessage({ type: 'PROGRESS', label: conversation.label, result });
-      try {
-        await activateConversation(conversation, { allowRescan: false });
-        await wait(250);
-        if (!isUnreadFollowUpEligible(messageState())) {
-          result.skipped += 1;
-          continue;
-        }
-        await sendCurrent(template);
-        result.sent += 1;
-        await wait(POST_SEND_DELAY_MS);
-      } catch (error) {
+      } else {
+        chrome.runtime.sendMessage({ type: 'PROGRESS', label: conversation.label, result });
+        try {
+          await activateConversation(conversation, { allowRescan: false });
+          await wait(250);
+          if (!isUnreadFollowUpEligible(messageState())) {
+            result.skipped += 1;
+          } else {
+            await sendCurrent(template);
+            result.sent += 1;
+            await wait(POST_SEND_DELAY_MS);
+          }
+        } catch (error) {
         // 单个会话失败不应中断整个任务 —— 记下失败原因，跳过这个会话继续处理下一个。
+          result.failed += 1;
+          if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
+          chrome.runtime.sendMessage({ type: 'PROGRESS', label: `${conversation.label}：${error.message}`, result });
+          await wait(500);
+        }
+        }
+      if (successorError) {
         result.failed += 1;
-        if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
-        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `${conversation.label}：${error.message}`, result });
+        if (!result.failureReasons.includes(successorError.message)) result.failureReasons.push(successorError.message);
+        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `Downward successor: ${successorError.message}`, result });
         await wait(500);
+        break;
       }
+      conversation = lockedSuccessor;
     }
     if (stopRequested) result.stopped = true;
     chrome.runtime.sendMessage({ type: 'TASK_COMPLETE', result });
