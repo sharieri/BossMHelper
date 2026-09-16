@@ -19,8 +19,24 @@
     return unique;
   }
 
+  function orderedEntries(entries) {
+    const unique = uniqueVisibleEntries(entries);
+    if (!unique.some((entry) => Number.isFinite(Number(entry?.position)))) return unique;
+    return unique
+      .map((entry, index) => ({ entry, index, position: Number(entry?.position) }))
+      .sort((left, right) => {
+        const leftKnown = Number.isFinite(left.position);
+        const rightKnown = Number.isFinite(right.position);
+        if (leftKnown && rightKnown) return left.position - right.position || left.index - right.index;
+        if (leftKnown) return -1;
+        if (rightKnown) return 1;
+        return left.index - right.index;
+      })
+      .map(({ entry }) => entry);
+  }
+
   function nextDownwardTarget(entries, currentKey, processedKeys) {
-    const list = uniqueVisibleEntries(entries);
+    const list = orderedEntries(entries);
     if (currentKey === undefined || currentKey === null) return null;
 
     const startIndex = list.findIndex((entry) => entry?.key === currentKey);
@@ -57,9 +73,10 @@
     scrollHeight,
     clientHeight,
     scrollAttempts,
+    anchorPosition,
     maxScrollAttempts = MAX_SUCCESSOR_SCROLL_ATTEMPTS
   }, nextScrollTop = defaultNextScrollTop) {
-    const uniqueEntries = uniqueVisibleEntries(entries);
+    const uniqueEntries = orderedEntries(entries);
     const attempts = Number(scrollAttempts) || 0;
     const processed = processedKeys && typeof processedKeys.has === 'function'
       ? processedKeys
@@ -68,7 +85,12 @@
     if (target) return { type: 'target', target, scrollAttempts: 0 };
 
     if (attempts > 0 && !uniqueEntries.some((entry) => entry?.key === currentKey)) {
-      const firstVisibleSuccessor = uniqueEntries.find((entry) => !processed.has(entry.key));
+      const anchor = Number(anchorPosition);
+      const firstVisibleSuccessor = uniqueEntries.find((entry) => {
+        if (processed.has(entry.key)) return false;
+        if (!Number.isFinite(anchor)) return true;
+        return Number.isFinite(Number(entry.position)) && Number(entry.position) > anchor;
+      });
       if (firstVisibleSuccessor) return { type: 'target', target: firstVisibleSuccessor, scrollAttempts: 0 };
     }
 

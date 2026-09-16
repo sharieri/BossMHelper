@@ -130,6 +130,36 @@ test('returns null at the bottom or when the current conversation is missing', (
   assert.equal(nextDownwardTarget(entries, 'missing', new Set()), null);
 });
 
+test('orders targets by their physical list position instead of DOM enumeration order', () => {
+  const reversedDomEntries = [
+    { key: 'C', position: 300 },
+    { key: 'B', position: 200 },
+    { key: 'A', position: 100 },
+  ];
+
+  assert.deepEqual(nextDownwardTarget(reversedDomEntries, 'B', new Set()), reversedDomEntries[1]);
+  assert.deepEqual(nextDownwardTarget(reversedDomEntries, 'B', new Set(['B'])), reversedDomEntries[0]);
+});
+
+test('does not choose an unprocessed row above the physical anchor after virtual scrolling', () => {
+  assert.deepEqual(
+    downwardSuccessorStep({
+      entries: [
+        { key: 'A', position: 100 },
+        { key: 'C', position: 300 },
+      ],
+      currentKey: 'B',
+      processedKeys: new Set(['B']),
+      anchorPosition: 200,
+      scrollTop: 340,
+      scrollHeight: 1000,
+      clientHeight: 300,
+      scrollAttempts: 1,
+    }),
+    { type: 'target', target: { key: 'C', position: 300 }, scrollAttempts: 0 },
+  );
+});
+
 test('uses a 300ms delay after a successful send', () => {
   assert.equal(POST_SEND_DELAY_MS, 300);
 });

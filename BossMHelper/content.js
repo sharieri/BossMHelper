@@ -201,8 +201,24 @@
   }
 
   function visibleDownwardTargets(container) {
+    const containerRect = container.getBoundingClientRect();
+    const scrollTop = Number(container.scrollTop) || 0;
     return uniqueVisibleEntries(conversationItems().map(entryFor))
-      .map((entry) => conversationTarget(entry, container.scrollTop));
+      .map((entry) => {
+        const itemRect = entry.item.getBoundingClientRect();
+        return {
+          ...conversationTarget(entry, scrollTop),
+          position: scrollTop + itemRect.top - containerRect.top
+        };
+      })
+      .sort((left, right) => left.position - right.position);
+  }
+
+  function conversationPosition(container, item) {
+    if (!container || !item) return null;
+    const containerRect = container.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    return (Number(container.scrollTop) || 0) + itemRect.top - containerRect.top;
   }
 
   async function nextLazyDownwardTarget(state) {
@@ -217,11 +233,13 @@
         scrollTop: container.scrollTop,
         scrollHeight: container.scrollHeight,
         clientHeight: container.clientHeight,
-        scrollAttempts: state.scrollAttempts
+        scrollAttempts: state.scrollAttempts,
+        anchorPosition: state.anchorPosition
       }, nextCollectionScrollTop);
 
       if (step.type === 'target') {
         state.scrollAttempts = step.scrollAttempts;
+        state.anchorPosition = Number.isFinite(Number(step.target.position)) ? Number(step.target.position) : state.anchorPosition;
         return step.target;
       }
 
@@ -780,7 +798,12 @@
     const result = { sent: 0, skipped: 0, failed: 0, stopped: false, failureReasons: [] };
     const current = selectedEntry();
     if (!current) throw new Error('Select a conversation before starting the downward task.');
-    const state = { currentKey: current.key, processedKeys: new Set(), scrollAttempts: 0 };
+    const state = {
+      currentKey: current.key,
+      processedKeys: new Set(),
+      scrollAttempts: 0,
+      anchorPosition: conversationPosition(conversationContainer(), current.item)
+    };
     while (!stopRequested) {
       let conversation = null;
       try {
@@ -824,7 +847,12 @@
     const result = { sent: 0, skipped: 0, failed: 0, stopped: false, failureReasons: [] };
     const current = selectedEntry();
     if (!current) throw new Error('Select a conversation before starting the downward task.');
-    const state = { currentKey: current.key, processedKeys: new Set(), scrollAttempts: 0 };
+    const state = {
+      currentKey: current.key,
+      processedKeys: new Set(),
+      scrollAttempts: 0,
+      anchorPosition: conversationPosition(conversationContainer(), current.item)
+    };
     while (!stopRequested) {
       let conversation = null;
       try {
