@@ -15,6 +15,7 @@
   const { messageStateFromRows } = BossAssistantMessageState;
   const { enterCommand } = BossAssistantSendCommand;
   const { nextTaskAction } = BossAssistantTaskRunner;
+  const { POST_SEND_DELAY_MS, downwardSuccessorStep, uniqueVisibleEntries } = BossAssistantDownwardTask;
   let stopRequested = false;
 
   const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -197,6 +198,44 @@
       await wait(600);  // v6 是 550，再加 50ms 保险
     }
     return [...found.values()];
+  }
+
+  function visibleDownwardTargets(container) {
+    return uniqueVisibleEntries(conversationItems().map(entryFor))
+      .map((entry) => conversationTarget(entry, container.scrollTop));
+  }
+
+  async function nextLazyDownwardTarget(state) {
+    const container = conversationContainer();
+    if (!container) throw new Error('Conversation list is unavailable.');
+
+    for (let round = 0; round < 40 && !stopRequested; round += 1) {
+      const step = downwardSuccessorStep({
+        entries: visibleDownwardTargets(container),
+        currentKey: state.currentKey,
+        processedKeys: state.processedKeys,
+        scrollTop: container.scrollTop,
+        scrollHeight: container.scrollHeight,
+        clientHeight: container.clientHeight,
+        scrollAttempts: state.scrollAttempts
+      }, nextCollectionScrollTop);
+
+      if (step.type === 'target') {
+        state.scrollAttempts = step.scrollAttempts;
+        return step.target;
+      }
+
+      if (step.type === 'scroll') {
+        container.scrollTop = step.scrollTop;
+        state.scrollAttempts = step.scrollAttempts;
+        await wait(600);
+        continue;
+      }
+
+      return null;
+    }
+
+    return null;
   }
 
   async function scanConversationCollection() {
@@ -738,9 +777,23 @@
     stopRequested = false;
     const exclusionKeys = new Set((exclusions || []).map((entry) => entry.key));
     const result = { sent: 0, skipped: 0, failed: 0, stopped: false, failureReasons: [] };
-    const conversations = await collectConversations();
-    for (const conversation of conversations) {
-      if (stopRequested) { result.stopped = true; break; }
+    const current = selectedEntry();
+    if (!current) throw new Error('Select a conversation before starting the downward task.');
+    const state = { currentKey: current.key, processedKeys: new Set(), scrollAttempts: 0 };
+    while (!stopRequested) {
+      let conversation = null;
+      try {
+        conversation = await nextLazyDownwardTarget(state);
+      } catch (error) {
+        result.failed += 1;
+        if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
+        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `Downward successor: ${error.message}`, result });
+        await wait(500);
+        break;
+      }
+      if (!conversation) break;
+      state.processedKeys.add(conversation.key);
+      state.currentKey = conversation.key;
       if (nextTaskAction(conversation, exclusionKeys).type === 'skip') {
         result.skipped += 1;
         continue;
@@ -750,7 +803,7 @@
         await activateConversation(conversation);
         await sendCurrent(template);
         result.sent += 1;
-        await wait(1000);
+        await wait(POST_SEND_DELAY_MS);
       } catch (error) {
         // 单个会话失败不应中断整个任务 —— 记下失败原因，跳过这个会话继续处理下一个。
         result.failed += 1;
@@ -759,6 +812,7 @@
         await wait(500);
       }
     }
+    if (stopRequested) result.stopped = true;
     chrome.runtime.sendMessage({ type: 'TASK_COMPLETE', result });
     return result;
   }
@@ -767,9 +821,23 @@
     stopRequested = false;
     const exclusionKeys = new Set((exclusions || []).map((entry) => entry.key));
     const result = { sent: 0, skipped: 0, failed: 0, stopped: false, failureReasons: [] };
-    const conversations = await collectConversations();
-    for (const conversation of conversations) {
-      if (stopRequested) { result.stopped = true; break; }
+    const current = selectedEntry();
+    if (!current) throw new Error('Select a conversation before starting the downward task.');
+    const state = { currentKey: current.key, processedKeys: new Set(), scrollAttempts: 0 };
+    while (!stopRequested) {
+      let conversation = null;
+      try {
+        conversation = await nextLazyDownwardTarget(state);
+      } catch (error) {
+        result.failed += 1;
+        if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
+        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `Downward successor: ${error.message}`, result });
+        await wait(500);
+        break;
+      }
+      if (!conversation) break;
+      state.processedKeys.add(conversation.key);
+      state.currentKey = conversation.key;
       if (nextTaskAction(conversation, exclusionKeys).type === 'skip') {
         result.skipped += 1;
         continue;
@@ -784,7 +852,7 @@
         }
         await sendCurrent(template);
         result.sent += 1;
-        await wait(1000);
+        await wait(POST_SEND_DELAY_MS);
       } catch (error) {
         // 单个会话失败不应中断整个任务 —— 记下失败原因，跳过这个会话继续处理下一个。
         result.failed += 1;
@@ -793,6 +861,7 @@
         await wait(500);
       }
     }
+    if (stopRequested) result.stopped = true;
     chrome.runtime.sendMessage({ type: 'TASK_COMPLETE', result });
     return result;
   }
