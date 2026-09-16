@@ -300,16 +300,17 @@
     return candidates.sort((left, right) => (right.scrollHeight - right.clientHeight) - (left.scrollHeight - left.clientHeight));
   }
 
-  async function activateConversation(target) {
+  async function activateConversation(target, options = {}) {
     const container = conversationContainer();
     if (!container) throw new Error('Conversation list is unavailable.');
+    const allowRescan = options.allowRescan !== false;
     if (Number.isFinite(target.scrollTop)) {
       container.scrollTop = target.scrollTop;
       await wait(180);
     }
     let visibleEntries = conversationItems().map(entryFor);
     let fresh = visibleEntries.find((entry) => entry.key === target.key);
-    if (shouldRescanConversation(target, visibleEntries)) {
+    if (allowRescan && shouldRescanConversation(target, visibleEntries)) {
       container.scrollTop = 0;
       await wait(300);
       for (let round = 0; round < 150 && !stopRequested; round += 1) {
@@ -800,7 +801,7 @@
       }
       chrome.runtime.sendMessage({ type: 'PROGRESS', label: conversation.label, result });
       try {
-        await activateConversation(conversation);
+        await activateConversation(conversation, { allowRescan: false });
         await sendCurrent(template);
         result.sent += 1;
         await wait(POST_SEND_DELAY_MS);
@@ -844,7 +845,7 @@
       }
       chrome.runtime.sendMessage({ type: 'PROGRESS', label: conversation.label, result });
       try {
-        await activateConversation(conversation);
+        await activateConversation(conversation, { allowRescan: false });
         await wait(250);
         if (!isUnreadFollowUpEligible(messageState())) {
           result.skipped += 1;
