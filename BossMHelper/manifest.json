@@ -12,7 +12,7 @@
   "content_scripts": [
     {
       "matches": ["https://www.zhipin.com/web/geek/chat*"],
-      "js": ["shared.js", "conversation-heuristics.js", "conversation-target.js", "conversation-scroll-target.js", "collection-scroll.js", "send-confirmation.js", "audit-tree.js", "audit-report.js", "editor-target.js", "editor-write.js", "message-container-target.js", "message-state.js", "send-command.js", "task-runner.js", "selectors.js", "content.js"],
+      "js": ["shared.js", "conversation-heuristics.js", "conversation-target.js", "conversation-scroll-target.js", "collection-scroll.js", "send-confirmation.js", "audit-tree.js", "audit-report.js", "editor-target.js", "editor-write.js", "message-container-target.js", "message-state.js", "send-command.js", "task-runner.js", "selectors.js", "downward-task.js", "content.js"],
       "run_at": "document_idle"
     }
   ]
