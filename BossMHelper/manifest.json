@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "BOSS 消息助手 v6.2",
-  "version": "0.6.2",
-  "description": "v6.2：v6.1 基础 + collectConversations 加 scrollHeight 增长检测 + 6 轮无进展才退出。",
+  "name": "BOSS 消息助手 v7.0",
+  "version": "7.0.0",
+  "description": "v7.0：从当前选中会话向下惰性处理，保留安全校验并以 300ms 间隔发送。",
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["https://www.zhipin.com/web/geek/chat*"],
   "action": {
-    "default_title": "BOSS 消息助手 v6.2",
+    "default_title": "BOSS 消息助手 v7.0",
     "default_popup": "popup.html"
   },
   "content_scripts": [

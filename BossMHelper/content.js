@@ -1,6 +1,6 @@
 (() => {
   // 版本标识 —— 打开 BOSS 页面后按 F12 看到这一行说明用的是新代码
-  console.log('[BossMHelper v6.2] loaded — v6.1 基础 + collectConversations 加 scrollHeight 检测 + 6 轮无进展才退出');
+  console.log('[BossMHelper v7.0] loaded — selected-to-downward lazy tasks + safety checks + 300ms send spacing');
   const { isUnreadFollowUpEligible, canWriteDraft } = BossAssistantShared;
   const { pickConversationRows } = BossAssistantConversationHeuristics;
   const { conversationIdentity, conversationTarget, conversationKey, uniqueConversationTargets, hasSelectedConversationClass, shouldRescanConversation } = BossAssistantConversationTarget;
@@ -165,7 +165,7 @@
     container.scrollTop = 0;
     await wait(500);
 
-    // 【v6.2 补丁】在 v6 基础上：
+    // 【v7.0 兼容逻辑】保留原有列表加载保护：
     // 1) 增加"scrollHeight 还在增长"检测（BOSS 还在 fetch 的话 scrollHeight 会变）
     // 2) 退出条件更保守：连续 6 轮没任何增长（会话数 + scrollHeight）才退出
     // 3) "看起来到底"时按 heightGrowing 分档等：还在 fetch 就多等
@@ -186,7 +186,7 @@
       const current = container.scrollTop;
       const next = nextCollectionScrollTop(current, scrollHeight, container.clientHeight);
       if (next <= current) {
-        // 【v6.2 补丁】连续 6 轮无任何进展才退出（之前 3 轮太激进）
+        // 连续 6 轮无任何进展才退出（避免虚拟列表加载过早结束）
         if (idleRounds >= 6) break;
         idleRounds += 1;
         // 还在 fetch（heightGrowing）就多等，没在 fetch 就少等
