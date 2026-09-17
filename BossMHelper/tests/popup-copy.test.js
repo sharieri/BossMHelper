@@ -13,8 +13,8 @@ test('popup labels explain bulk tasks start at the selected conversation and con
   assert.match(popupHtml, /批量任务会从当前选中会话开始向下处理/);
 });
 
-test('popup status copy explains downward task direction and 300ms send spacing', () => {
+test('popup status copy explains downward task direction and 1000ms send spacing', () => {
   assert.match(popupControls, /从当前选中会话开始向下读取/);
-  assert.match(popupControls, /每人 0\.3 秒 \(300ms\) 发送/);
+  assert.match(popupControls, /每人 1 秒 \(1000ms\) 发送/);
   assert.match(popupControls, /准备就绪：批量任务会从当前选中会话开始向下处理/);
 });

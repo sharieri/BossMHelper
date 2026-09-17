@@ -81,7 +81,7 @@ wakeAllButton.addEventListener('click', async () => {
     const tab = await currentBossTab();
     await saveSettings();
     setRunning(true);
-    setStatus('正在从当前选中会话开始向下读取，并按每人 0.3 秒 (300ms) 发送；可随时停止。');
+    setStatus('正在从当前选中会话开始向下读取，并按每人 1 秒 (1000ms) 发送；可随时停止。');
     const response = await chrome.tabs.sendMessage(tab.id, { type: 'WAKE_ALL', template, exclusions });
     if (!response?.ok) throw new Error(response?.error || '唤醒任务未启动。');
   } catch (error) {
@@ -97,7 +97,7 @@ followUpButton.addEventListener('click', async () => {
     const tab = await currentBossTab();
     await saveSettings();
     setRunning(true);
-    setStatus('正在从当前选中会话开始向下读取已读未回会话，并按每人 0.3 秒 (300ms) 发送；可随时停止。');
+    setStatus('正在从当前选中会话开始向下读取已读未回会话，并按每人 1 秒 (1000ms) 发送；可随时停止。');
     const response = await chrome.tabs.sendMessage(tab.id, { type: 'FOLLOW_UP_READ', template, exclusions });
     if (!response?.ok) throw new Error(response?.error || '跟进任务未启动。');
   } catch (error) {

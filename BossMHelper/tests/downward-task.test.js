@@ -160,6 +160,6 @@ test('does not choose an unprocessed row above the physical anchor after virtual
   );
 });
 
-test('uses a 300ms delay after a successful send', () => {
-  assert.equal(POST_SEND_DELAY_MS, 300);
+test('uses a 1000ms delay after a successful send', () => {
+  assert.equal(POST_SEND_DELAY_MS, 1000);
 });

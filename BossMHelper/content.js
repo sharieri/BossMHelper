@@ -1,6 +1,6 @@
 (() => {
   // 版本标识 —— 打开 BOSS 页面后按 F12 看到这一行说明用的是新代码
-  console.log('[BossMHelper v7.0] loaded — selected-to-downward lazy tasks + safety checks + 300ms send spacing');
+  console.log('[BossMHelper v7.0] loaded — selected-to-downward lazy tasks + safety checks + 1000ms send spacing');
   const { isUnreadFollowUpEligible, canWriteDraft } = BossAssistantShared;
   const { pickConversationRows } = BossAssistantConversationHeuristics;
   const { conversationIdentity, conversationTarget, conversationKey, uniqueConversationTargets, hasSelectedConversationClass, shouldRescanConversation } = BossAssistantConversationTarget;

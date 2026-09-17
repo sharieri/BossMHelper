@@ -3,7 +3,7 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.BossAssistantDownwardTask = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
-  const POST_SEND_DELAY_MS = 300;
+  const POST_SEND_DELAY_MS = 1000;
   const MAX_SUCCESSOR_SCROLL_ATTEMPTS = 18;
 
   function uniqueVisibleEntries(entries) {
