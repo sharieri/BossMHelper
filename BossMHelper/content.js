@@ -3,7 +3,7 @@
   console.log('[BossMHelper v7.0] loaded — selected-to-downward lazy tasks + safety checks + 1000ms send spacing');
   const { isUnreadFollowUpEligible, canWriteDraft } = BossAssistantShared;
   const { pickConversationRows } = BossAssistantConversationHeuristics;
-  const { conversationIdentity, conversationTarget, conversationKey, uniqueConversationTargets, hasSelectedConversationClass, shouldRescanConversation } = BossAssistantConversationTarget;
+  const { conversationIdentity, conversationTarget, conversationKey, uniqueConversationTargets, hasSelectedConversationClass, shouldRescanConversation, centeredConversationScrollTop } = BossAssistantConversationTarget;
   const { chooseConversationScrollTarget } = BossAssistantConversationScrollTarget;
   const { nextCollectionScrollTop } = BossAssistantCollectionScroll;
   const { isSendConfirmed } = BossAssistantSendConfirmation;
@@ -256,6 +256,21 @@
     return null;
   }
 
+  function revealConversationRow(container, item) {
+    if (!container || !item) return;
+    const containerRect = container.getBoundingClientRect();
+    const rowRect = item.getBoundingClientRect();
+    const nextScrollTop = centeredConversationScrollTop({
+      scrollTop: container.scrollTop,
+      scrollHeight: container.scrollHeight,
+      clientHeight: container.clientHeight,
+      containerTop: containerRect.top,
+      rowTop: rowRect.top,
+      rowHeight: rowRect.height
+    });
+    if (Math.abs(nextScrollTop - container.scrollTop) > 1) container.scrollTop = nextScrollTop;
+  }
+
   async function scanConversationCollection() {
     const container = conversationContainer();
     if (!container) throw new Error('Conversation list was not found.');
@@ -352,6 +367,8 @@
       activated = await waitFor(() => selectedEntry()?.key === target.key, 2000);
     }
     if (!activated) throw new Error('Target conversation did not become active; skipped to prevent a mis-send.');
+    const selectedRow = conversationItems().find((entry) => entry.key === target.key)?.item || fresh.item;
+    revealConversationRow(container, selectedRow);
     // 切完会话后再等聊天区域真正就绪（消息历史 + 输入框渲染完成），
     // 防止在聊天内容还在加载时操作输入框，导致错发或草稿污染。
     const chatReady = await waitForChatReady(4000);
