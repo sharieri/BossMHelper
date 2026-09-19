@@ -1,18 +1,18 @@
 {
   "manifest_version": 3,
-  "name": "BOSS 消息助手 v3",
-  "version": "0.3.0",
-  "description": "v3：失败不中断任务、跳过当前会话；切完会话等聊天内容加载后再写消息。",
+  "name": "BOSS 消息助手 v7.0",
+  "version": "7.0.0",
+  "description": "v7.0：从当前选中会话向下惰性处理，保留安全校验并以 1 秒间隔发送。",
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["https://www.zhipin.com/web/geek/chat*"],
   "action": {
-    "default_title": "BOSS 消息助手 v3",
+    "default_title": "BOSS 消息助手 v7.0",
     "default_popup": "popup.html"
   },
   "content_scripts": [
     {
       "matches": ["https://www.zhipin.com/web/geek/chat*"],
-      "js": ["shared.js", "conversation-heuristics.js", "conversation-target.js", "conversation-scroll-target.js", "collection-scroll.js", "send-confirmation.js", "audit-tree.js", "audit-report.js", "editor-target.js", "editor-write.js", "message-container-target.js", "message-state.js", "send-command.js", "task-runner.js", "selectors.js", "content.js"],
+      "js": ["shared.js", "conversation-heuristics.js", "conversation-target.js", "conversation-scroll-target.js", "collection-scroll.js", "send-confirmation.js", "audit-tree.js", "audit-report.js", "editor-target.js", "editor-write.js", "message-container-target.js", "message-state.js", "send-command.js", "task-runner.js", "selectors.js", "downward-task.js", "content.js"],
       "run_at": "document_idle"
     }
   ]

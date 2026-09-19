@@ -17,8 +17,8 @@
       </section>
       <ul id="exclusionList"></ul>
       <section class="actions">
-        <button id="wakeAllButton" class="primary">一键唤醒全部面试官</button>
-        <button id="followUpButton" class="secondary">跟进已读未回面试官</button>
+        <button id="wakeAllButton" class="primary">从当前选中会话向下唤醒</button>
+        <button id="followUpButton" class="secondary">从当前选中会话向下跟进已读未回</button>
         <button id="stopButton" class="stop" hidden>停止当前任务</button>
         <button id="sendCurrentButton" class="primary">发送当前会话测试消息</button>
         <button id="draftButton" class="test">写入当前会话草稿（不发送）</button>
@@ -31,7 +31,7 @@
       </section>
       <p id="status" class="status" role="status">安全审计模式：发送功能已完全关闭。</p>
       <textarea id="auditOutput" aria-label="审计结果" readonly placeholder="点击“运行页面审计”后，结果会显示在这里。"></textarea>
-      <p class="notice">发送和批量任务只在你点击相应按钮后执行；请遵守网站规则和页面提示。</p>
+      <p class="notice">发送和批量任务只在你点击相应按钮后执行；批量任务会从当前选中会话开始向下处理；请遵守网站规则和页面提示。</p>
     </main>
     <script src="shared.js"></script>
     <script src="popup-controls.js"></script>

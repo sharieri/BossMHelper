@@ -1,9 +1,9 @@
 (() => {
   // 版本标识 —— 打开 BOSS 页面后按 F12 看到这一行说明用的是新代码
-  console.log('[BossMHelper v3] loaded — 失败不中断任务，切换会话后等聊天内容加载完成');
+  console.log('[BossMHelper v7.0] loaded — selected-to-downward lazy tasks + safety checks + 1000ms send spacing');
   const { isUnreadFollowUpEligible, canWriteDraft } = BossAssistantShared;
   const { pickConversationRows } = BossAssistantConversationHeuristics;
-  const { conversationIdentity, conversationTarget, conversationKey, uniqueConversationTargets, hasSelectedConversationClass, shouldRescanConversation } = BossAssistantConversationTarget;
+  const { conversationIdentity, conversationTarget, conversationKey, uniqueConversationTargets, hasSelectedConversationClass, shouldRescanConversation, centeredConversationScrollTop } = BossAssistantConversationTarget;
   const { chooseConversationScrollTarget } = BossAssistantConversationScrollTarget;
   const { nextCollectionScrollTop } = BossAssistantCollectionScroll;
   const { isSendConfirmed } = BossAssistantSendConfirmation;
@@ -15,6 +15,7 @@
   const { messageStateFromRows } = BossAssistantMessageState;
   const { enterCommand } = BossAssistantSendCommand;
   const { nextTaskAction } = BossAssistantTaskRunner;
+  const { POST_SEND_DELAY_MS, downwardSuccessorStep, uniqueVisibleEntries } = BossAssistantDownwardTask;
   let stopRequested = false;
 
   const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -162,18 +163,112 @@
     if (!container) throw new Error('未找到消息会话列表，请确认已打开 BOSS 直聘消息页。');
     const found = new Map();
     container.scrollTop = 0;
-    await wait(300);
-    for (let round = 0; round < 150 && !stopRequested; round += 1) {
+    await wait(500);
+
+    // 【v7.0 兼容逻辑】保留原有列表加载保护：
+    // 1) 增加"scrollHeight 还在增长"检测（BOSS 还在 fetch 的话 scrollHeight 会变）
+    // 2) 退出条件更保守：连续 6 轮没任何增长（会话数 + scrollHeight）才退出
+    // 3) "看起来到底"时按 heightGrowing 分档等：还在 fetch 就多等
+    let lastSize = 0;
+    let lastHeight = 0;
+    let idleRounds = 0;
+
+    for (let round = 0; round < 250 && !stopRequested; round += 1) {
       conversationItems().map(entryFor).forEach((entry) => {
         if (entry.key) found.set(entry.key, conversationTarget(entry, container.scrollTop));
       });
+      const scrollHeight = container.scrollHeight;
+      const sizeGrowing = found.size > lastSize;
+      const heightGrowing = scrollHeight > lastHeight + 2;
+      if (sizeGrowing) { lastSize = found.size; idleRounds = 0; }
+      if (heightGrowing) { lastHeight = scrollHeight; idleRounds = 0; }
+
       const current = container.scrollTop;
-      const next = nextCollectionScrollTop(current, container.scrollHeight, container.clientHeight);
-      if (next <= current) break;
+      const next = nextCollectionScrollTop(current, scrollHeight, container.clientHeight);
+      if (next <= current) {
+        // 连续 6 轮无任何进展才退出（避免虚拟列表加载过早结束）
+        if (idleRounds >= 6) break;
+        idleRounds += 1;
+        // 还在 fetch（heightGrowing）就多等，没在 fetch 就少等
+        await wait(heightGrowing ? 2500 : 1500);
+        continue;
+      }
+
       container.scrollTop = next;
-      await wait(350);
+      await wait(600);  // v6 是 550，再加 50ms 保险
     }
     return [...found.values()];
+  }
+
+  function visibleDownwardTargets(container) {
+    const containerRect = container.getBoundingClientRect();
+    const scrollTop = Number(container.scrollTop) || 0;
+    return uniqueVisibleEntries(conversationItems().map(entryFor))
+      .map((entry) => {
+        const itemRect = entry.item.getBoundingClientRect();
+        return {
+          ...conversationTarget(entry, scrollTop),
+          position: scrollTop + itemRect.top - containerRect.top
+        };
+      })
+      .sort((left, right) => left.position - right.position);
+  }
+
+  function conversationPosition(container, item) {
+    if (!container || !item) return null;
+    const containerRect = container.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    return (Number(container.scrollTop) || 0) + itemRect.top - containerRect.top;
+  }
+
+  async function nextLazyDownwardTarget(state) {
+    const container = conversationContainer();
+    if (!container) throw new Error('Conversation list is unavailable.');
+
+    for (let round = 0; round < 40 && !stopRequested; round += 1) {
+      const step = downwardSuccessorStep({
+        entries: visibleDownwardTargets(container),
+        currentKey: state.currentKey,
+        processedKeys: state.processedKeys,
+        scrollTop: container.scrollTop,
+        scrollHeight: container.scrollHeight,
+        clientHeight: container.clientHeight,
+        scrollAttempts: state.scrollAttempts,
+        anchorPosition: state.anchorPosition
+      }, nextCollectionScrollTop);
+
+      if (step.type === 'target') {
+        state.scrollAttempts = step.scrollAttempts;
+        state.anchorPosition = Number.isFinite(Number(step.target.position)) ? Number(step.target.position) : state.anchorPosition;
+        return step.target;
+      }
+
+      if (step.type === 'scroll') {
+        container.scrollTop = step.scrollTop;
+        state.scrollAttempts = step.scrollAttempts;
+        await wait(600);
+        continue;
+      }
+
+      return null;
+    }
+
+    return null;
+  }
+
+  function revealConversationRow(container, item) {
+    if (!container || !item) return;
+    const containerRect = container.getBoundingClientRect();
+    const rowRect = item.getBoundingClientRect();
+    const nextScrollTop = centeredConversationScrollTop({
+      scrollTop: container.scrollTop,
+      scrollHeight: container.scrollHeight,
+      clientHeight: container.clientHeight,
+      containerTop: containerRect.top,
+      rowTop: rowRect.top,
+      rowHeight: rowRect.height
+    });
+    if (Math.abs(nextScrollTop - container.scrollTop) > 1) container.scrollTop = nextScrollTop;
   }
 
   async function scanConversationCollection() {
@@ -238,16 +333,17 @@
     return candidates.sort((left, right) => (right.scrollHeight - right.clientHeight) - (left.scrollHeight - left.clientHeight));
   }
 
-  async function activateConversation(target) {
+  async function activateConversation(target, options = {}) {
     const container = conversationContainer();
     if (!container) throw new Error('Conversation list is unavailable.');
+    const allowRescan = options.allowRescan !== false;
     if (Number.isFinite(target.scrollTop)) {
       container.scrollTop = target.scrollTop;
       await wait(180);
     }
     let visibleEntries = conversationItems().map(entryFor);
     let fresh = visibleEntries.find((entry) => entry.key === target.key);
-    if (shouldRescanConversation(target, visibleEntries)) {
+    if (allowRescan && shouldRescanConversation(target, visibleEntries)) {
       container.scrollTop = 0;
       await wait(300);
       for (let round = 0; round < 150 && !stopRequested; round += 1) {
@@ -264,8 +360,15 @@
     if (!fresh) throw new Error('Target conversation was not found after refreshing the current list; skipped to prevent a mis-send.');
     const clickTarget = fresh.item.querySelector('.friend-content') || fresh.item;
     clickTarget.click();
-    const activated = await waitFor(() => selectedEntry()?.key === target.key, 1200);
+    // v6 补丁：1.2s 经常不够，给 BOSS 切会话 2.5s；如果还没选中，再点一次（第一次可能被 React 吃了）
+    let activated = await waitFor(() => selectedEntry()?.key === target.key, 2500);
+    if (!activated) {
+      clickTarget.click();
+      activated = await waitFor(() => selectedEntry()?.key === target.key, 2000);
+    }
     if (!activated) throw new Error('Target conversation did not become active; skipped to prevent a mis-send.');
+    const selectedRow = conversationItems().find((entry) => entry.key === target.key)?.item || fresh.item;
+    revealConversationRow(container, selectedRow);
     // 切完会话后再等聊天区域真正就绪（消息历史 + 输入框渲染完成），
     // 防止在聊天内容还在加载时操作输入框，导致错发或草稿污染。
     const chatReady = await waitForChatReady(4000);
@@ -710,27 +813,65 @@
     stopRequested = false;
     const exclusionKeys = new Set((exclusions || []).map((entry) => entry.key));
     const result = { sent: 0, skipped: 0, failed: 0, stopped: false, failureReasons: [] };
-    const conversations = await collectConversations();
-    for (const conversation of conversations) {
-      if (stopRequested) { result.stopped = true; break; }
+    const current = selectedEntry();
+    if (!current) throw new Error('Select a conversation before starting the downward task.');
+    const state = {
+      currentKey: current.key,
+      processedKeys: new Set(),
+      scrollAttempts: 0,
+      anchorPosition: conversationPosition(conversationContainer(), current.item)
+    };
+    let conversation = null;
+    while (!stopRequested) {
+      if (!conversation) {
+        try {
+          conversation = await nextLazyDownwardTarget(state);
+        } catch (error) {
+          result.failed += 1;
+          if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
+          chrome.runtime.sendMessage({ type: 'PROGRESS', label: `Downward successor: ${error.message}`, result });
+          await wait(500);
+          break;
+        }
+      }
+      if (!conversation) break;
+      state.processedKeys.add(conversation.key);
+      state.currentKey = conversation.key;
+      let lockedSuccessor = null;
+      let successorError = null;
+      try {
+        // Lock the next row before sending: BOSS may move the current row after a successful send.
+        lockedSuccessor = await nextLazyDownwardTarget(state);
+      } catch (error) {
+        successorError = error;
+      }
       if (nextTaskAction(conversation, exclusionKeys).type === 'skip') {
         result.skipped += 1;
-        continue;
-      }
-      chrome.runtime.sendMessage({ type: 'PROGRESS', label: conversation.label, result });
-      try {
-        await activateConversation(conversation);
-        await sendCurrent(template);
-        result.sent += 1;
-        await wait(1000);
-      } catch (error) {
+      } else {
+        chrome.runtime.sendMessage({ type: 'PROGRESS', label: conversation.label, result });
+        try {
+          await activateConversation(conversation, { allowRescan: false });
+          await sendCurrent(template);
+          result.sent += 1;
+          await wait(POST_SEND_DELAY_MS);
+        } catch (error) {
         // 单个会话失败不应中断整个任务 —— 记下失败原因，跳过这个会话继续处理下一个。
-        result.failed += 1;
-        if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
-        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `${conversation.label}：${error.message}`, result });
-        await wait(500);
+          result.failed += 1;
+          if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
+          chrome.runtime.sendMessage({ type: 'PROGRESS', label: `${conversation.label}：${error.message}`, result });
+          await wait(500);
+        }
       }
+      if (successorError) {
+        result.failed += 1;
+        if (!result.failureReasons.includes(successorError.message)) result.failureReasons.push(successorError.message);
+        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `Downward successor: ${successorError.message}`, result });
+        await wait(500);
+        break;
+      }
+      conversation = lockedSuccessor;
     }
+    if (stopRequested) result.stopped = true;
     chrome.runtime.sendMessage({ type: 'TASK_COMPLETE', result });
     return result;
   }
@@ -739,32 +880,70 @@
     stopRequested = false;
     const exclusionKeys = new Set((exclusions || []).map((entry) => entry.key));
     const result = { sent: 0, skipped: 0, failed: 0, stopped: false, failureReasons: [] };
-    const conversations = await collectConversations();
-    for (const conversation of conversations) {
-      if (stopRequested) { result.stopped = true; break; }
+    const current = selectedEntry();
+    if (!current) throw new Error('Select a conversation before starting the downward task.');
+    const state = {
+      currentKey: current.key,
+      processedKeys: new Set(),
+      scrollAttempts: 0,
+      anchorPosition: conversationPosition(conversationContainer(), current.item)
+    };
+    let conversation = null;
+    while (!stopRequested) {
+      if (!conversation) {
+        try {
+          conversation = await nextLazyDownwardTarget(state);
+        } catch (error) {
+          result.failed += 1;
+          if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
+          chrome.runtime.sendMessage({ type: 'PROGRESS', label: `Downward successor: ${error.message}`, result });
+          await wait(500);
+          break;
+        }
+      }
+      if (!conversation) break;
+      state.processedKeys.add(conversation.key);
+      state.currentKey = conversation.key;
+      let lockedSuccessor = null;
+      let successorError = null;
+      try {
+        // Lock the next row before sending: BOSS may move the current row after a successful send.
+        lockedSuccessor = await nextLazyDownwardTarget(state);
+      } catch (error) {
+        successorError = error;
+      }
       if (nextTaskAction(conversation, exclusionKeys).type === 'skip') {
         result.skipped += 1;
-        continue;
-      }
-      chrome.runtime.sendMessage({ type: 'PROGRESS', label: conversation.label, result });
-      try {
-        await activateConversation(conversation);
-        await wait(250);
-        if (!isUnreadFollowUpEligible(messageState())) {
-          result.skipped += 1;
-          continue;
-        }
-        await sendCurrent(template);
-        result.sent += 1;
-        await wait(1000);
-      } catch (error) {
+      } else {
+        chrome.runtime.sendMessage({ type: 'PROGRESS', label: conversation.label, result });
+        try {
+          await activateConversation(conversation, { allowRescan: false });
+          await wait(250);
+          if (!isUnreadFollowUpEligible(messageState())) {
+            result.skipped += 1;
+          } else {
+            await sendCurrent(template);
+            result.sent += 1;
+            await wait(POST_SEND_DELAY_MS);
+          }
+        } catch (error) {
         // 单个会话失败不应中断整个任务 —— 记下失败原因，跳过这个会话继续处理下一个。
+          result.failed += 1;
+          if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
+          chrome.runtime.sendMessage({ type: 'PROGRESS', label: `${conversation.label}：${error.message}`, result });
+          await wait(500);
+        }
+        }
+      if (successorError) {
         result.failed += 1;
-        if (!result.failureReasons.includes(error.message)) result.failureReasons.push(error.message);
-        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `${conversation.label}：${error.message}`, result });
+        if (!result.failureReasons.includes(successorError.message)) result.failureReasons.push(successorError.message);
+        chrome.runtime.sendMessage({ type: 'PROGRESS', label: `Downward successor: ${successorError.message}`, result });
         await wait(500);
+        break;
       }
+      conversation = lockedSuccessor;
     }
+    if (stopRequested) result.stopped = true;
     chrome.runtime.sendMessage({ type: 'TASK_COMPLETE', result });
     return result;
   }

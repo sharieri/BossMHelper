@@ -81,7 +81,7 @@ wakeAllButton.addEventListener('click', async () => {
     const tab = await currentBossTab();
     await saveSettings();
     setRunning(true);
-    setStatus('正在读取全部会话，并按每人 1 秒发送；可随时停止。');
+    setStatus('正在从当前选中会话开始向下读取，并按每人 1 秒 (1000ms) 发送；可随时停止。');
     const response = await chrome.tabs.sendMessage(tab.id, { type: 'WAKE_ALL', template, exclusions });
     if (!response?.ok) throw new Error(response?.error || '唤醒任务未启动。');
   } catch (error) {
@@ -97,7 +97,7 @@ followUpButton.addEventListener('click', async () => {
     const tab = await currentBossTab();
     await saveSettings();
     setRunning(true);
-    setStatus('正在识别已读未回会话，并按每人 1 秒发送；可随时停止。');
+    setStatus('正在从当前选中会话开始向下读取已读未回会话，并按每人 1 秒 (1000ms) 发送；可随时停止。');
     const response = await chrome.tabs.sendMessage(tab.id, { type: 'FOLLOW_UP_READ', template, exclusions });
     if (!response?.ok) throw new Error(response?.error || '跟进任务未启动。');
   } catch (error) {
@@ -148,5 +148,5 @@ chrome.runtime.onMessage.addListener((message) => {
   exclusions = Array.isArray(saved.exclusions) ? saved.exclusions : [];
   renderExclusions();
   setRunning(false);
-  setStatus('准备就绪：两项任务仅在你点击按钮后执行。');
+  setStatus('准备就绪：批量任务会从当前选中会话开始向下处理，仅在你点击按钮后执行。');
 })();

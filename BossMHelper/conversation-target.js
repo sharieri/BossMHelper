@@ -38,5 +38,22 @@
     return Boolean(target?.key) && !(visibleEntries || []).some((entry) => entry.key === target.key);
   }
 
-  return { conversationIdentity, conversationTarget, conversationKey, uniqueConversationTargets, hasSelectedConversationClass, shouldRescanConversation };
+  function centeredConversationScrollTop({
+    scrollTop = 0,
+    scrollHeight = 0,
+    clientHeight = 0,
+    containerTop = 0,
+    rowTop = 0,
+    rowHeight = 0
+  } = {}) {
+    const currentScrollTop = Number.isFinite(Number(scrollTop)) ? Number(scrollTop) : 0;
+    const height = Number.isFinite(Number(scrollHeight)) ? Number(scrollHeight) : 0;
+    const viewport = Number.isFinite(Number(clientHeight)) ? Number(clientHeight) : 0;
+    const maximum = Math.max(0, height - viewport);
+    const rowOffset = currentScrollTop + (Number(rowTop) || 0) - (Number(containerTop) || 0);
+    const centered = rowOffset - (viewport - (Number(rowHeight) || 0)) / 2;
+    return Math.min(maximum, Math.max(0, Math.round(centered)));
+  }
+
+  return { conversationIdentity, conversationTarget, conversationKey, uniqueConversationTargets, hasSelectedConversationClass, shouldRescanConversation, centeredConversationScrollTop };
 });
